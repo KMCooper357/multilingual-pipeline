@@ -1,0 +1,39 @@
+name: Upload Audio to S3
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'audio_inputs/*.mp3'
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install boto3
+        run: pip install boto3
+
+      - name: Upload to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        run: |
+          python <<EOF
+          import boto3, os
+          s3 = boto3.client('s3', region_name=os.environ['AWS_REGION'])
+          folder = 'audio_inputs'
+          env = 'prod' if '${{ github.ref }}' == 'refs/heads/main' else 'beta'
+          for file in os.listdir(folder):
+              if file.endswith('.mp3'):
+                  s3.upload_file(f"{folder}/{file}", os.environ['S3_BUCKET'], f"{folder}/{env}-{file}")
+          EOF
